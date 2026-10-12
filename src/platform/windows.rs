@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use std::mem::size_of;
 use std::path::PathBuf;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use serde::Deserialize;
 use windows::Win32::Foundation::{
     CloseHandle, ERROR_NOT_ALL_ASSIGNED, ERROR_SUCCESS, GetLastError, HANDLE, LUID, SetLastError,
@@ -25,9 +25,9 @@ use wmi::{Variant, WMIConnection};
 
 use super::{AcpiAccess, Platform};
 use crate::{
-    decode_ap_state, matching_profile, validate_writable_variable, ApState, DisplayDevice,
-    EFI_GLOBAL_VARIABLE_GUID, FirmwareVariable, MachineInfo, MSI_VARIABLE_GUID, MSI_VARIABLE_NAME,
-    SECURE_BOOT_VARIABLE_NAME,
+    ApState, DisplayDevice, EFI_GLOBAL_VARIABLE_GUID, FirmwareVariable, MSI_VARIABLE_GUID,
+    MSI_VARIABLE_NAME, MachineInfo, SECURE_BOOT_VARIABLE_NAME, decode_ap_state, matching_profile,
+    validate_writable_variable,
 };
 
 const GENERAL_SETTING_KEY: &str =

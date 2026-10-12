@@ -38,9 +38,11 @@ The firmware contract is characterized for exactly these systems:
 | Architecture | AMD64 |
 | Operating system | Windows (untested) or Linux |
 
-Normal switching requires an exact model and motherboard match. The BIOS is
-checked separately. Development override flags exist, but they do not turn an
-unknown machine or BIOS into a supported configuration.
+Normal switching requires an exact model and motherboard match with one of
+these systems. The BIOS is then checked separately against that system's
+validated version. Diagnostics with `--debug` require the model, motherboard,
+and BIOS to all match. Development override flags exist, but they do not turn
+an unknown machine or BIOS into a supported configuration.
 
 Windows switching is the original characterized path. Linux diagnostics have
 been verified on the supported laptop. The Linux switching path is implemented
@@ -215,8 +217,8 @@ write.
 | `MODE` | Target mode, or omit it for the interactive selector |
 | `--debug` | Collect read-only diagnostics and exit |
 | `--json` | Emit structured output and skip typed confirmation |
-| `--allow-unsupported-hardware` | Deliberately bypass the model/board gate |
-| `--allow-unvalidated-bios` | Deliberately permit a different BIOS version |
+| `--allow-unsupported-hardware` | Deliberately bypass the model/board gate; on an unrecognized machine, also skips the BIOS check |
+| `--allow-unvalidated-bios` | Deliberately permit a different BIOS on a recognized model and motherboard |
 | `--help` | Show complete command help |
 
 The override flags are intended for deliberate characterization work. They do

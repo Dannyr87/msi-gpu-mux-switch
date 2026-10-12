@@ -4,13 +4,13 @@ use std::os::fd::AsRawFd;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 
 use super::{AcpiAccess, Platform};
 use crate::{
-    decode_ap_state, matching_profile, validate_writable_variable, ApState, DisplayDevice,
-    FirmwareVariable, MachineInfo, EFI_GLOBAL_VARIABLE_GUID, MSI_VARIABLE_GUID,
-    MSI_VARIABLE_NAME, SECURE_BOOT_VARIABLE_NAME,
+    ApState, DisplayDevice, EFI_GLOBAL_VARIABLE_GUID, FirmwareVariable, MSI_VARIABLE_GUID,
+    MSI_VARIABLE_NAME, MachineInfo, SECURE_BOOT_VARIABLE_NAME, decode_ap_state, matching_profile,
+    validate_writable_variable,
 };
 
 const MSI_WMI_DEVICE_NAME: &str = "ABBC0F6E-8EA1-11D1-00A0-C90629100000-0";
@@ -389,8 +389,9 @@ impl ImmutableFlagGuard {
 
         if original_flags & FS_IMMUTABLE_FL != 0 {
             let writable_flags = original_flags & !FS_IMMUTABLE_FL;
-            unsafe { fs_ioc_setflags(file.as_raw_fd(), &writable_flags) }
-                .with_context(|| format!("temporarily clear immutable flag on {}", path.display()))?;
+            unsafe { fs_ioc_setflags(file.as_raw_fd(), &writable_flags) }.with_context(|| {
+                format!("temporarily clear immutable flag on {}", path.display())
+            })?;
         }
 
         Ok(Self {

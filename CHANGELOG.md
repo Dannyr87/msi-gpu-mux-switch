@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support for the MSI Stealth 16Studio A13VG with the MS-15F2 motherboard and
+  BIOS E15F2IMS.10F. Switching has been tested on Linux; Windows switching on
+  this model is untested.
+- Supported systems are now listed as model, motherboard, and BIOS profiles.
+
+### Changed
+
+- On a machine that matches no supported model and motherboard,
+  `--allow-unsupported-hardware` now also skips the BIOS check.
+  `--allow-unvalidated-bios` applies only to a recognized model and
+  motherboard.
+- `--debug` and the debug report's `expected_hardware` field now also require
+  the BIOS to match. A supported laptop running a different BIOS needs
+  `--allow-unsupported-hardware` to collect diagnostics.
+
 ## [0.2.0] - 2026-08-31
 
 ### Added

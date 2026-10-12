@@ -35,11 +35,13 @@ struct Args {
     #[arg(long)]
     json: bool,
 
-    /// Deliberately bypass the exact model/board gate.
+    /// Deliberately bypass the exact model/board gate. On an unrecognized
+    /// machine, this also skips the BIOS check.
     #[arg(long)]
     allow_unsupported_hardware: bool,
 
-    /// Deliberately permit a BIOS other than the characterized version.
+    /// Deliberately permit a BIOS other than the characterized version on a
+    /// recognized model and board.
     #[arg(long)]
     allow_unvalidated_bios: bool,
 }
@@ -331,7 +333,7 @@ fn run(args: Args, reporter: &Reporter) -> Result<RunOutcome> {
     if profile.is_none() && !args.allow_unsupported_hardware {
         bail!(
             "unsupported hardware: model '{}', board '{}'; \
-         use the explicit override only after reviewing the firmware layout",
+             use the explicit override only after reviewing the firmware layout",
             machine.model,
             machine.board
         );
@@ -341,7 +343,7 @@ fn run(args: Args, reporter: &Reporter) -> Result<RunOutcome> {
         if machine.bios != profile.bios && !args.allow_unvalidated_bios {
             bail!(
                 "BIOS '{}' is not the characterized '{}'; \
-             use --allow-unvalidated-bios only after reviewing firmware changes",
+                 use --allow-unvalidated-bios only after reviewing firmware changes",
                 machine.bios,
                 profile.bios
             );
