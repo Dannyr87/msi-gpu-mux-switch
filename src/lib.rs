@@ -16,13 +16,39 @@ pub use platform::{
     wait_for_keypress, write_msi_variable,
 };
 
-pub const EXPECTED_MODEL: &str = "Vector 16 HX AI A2XWIG";
-pub const EXPECTED_BOARD: &str = "MS-15M3";
-pub const EXPECTED_BIOS: &str = "E15M3IMS.116";
+// Shared firmware-variable details. This implementation assumes these are the
+// same for every hardware profile below.
 pub const MSI_VARIABLE_NAME: &str = "MsiDCVarData";
 pub const MSI_VARIABLE_GUID: &str = "{DD96BAAF-145E-4F56-B1CF-193256298E99}";
 pub const EXPECTED_VARIABLE_LENGTH: usize = 20;
 pub const EXPECTED_VARIABLE_ATTRIBUTES: u32 = 0x0000_0007;
+
+/// A hardware combination this program recognizes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HardwareProfile {
+    pub model: &'static str,
+    pub board: &'static str,
+    pub bios: &'static str,
+}
+
+/// Add one entry for each supported model/board/BIOS combination.
+pub const HARDWARE_PROFILES: &[HardwareProfile] = &[
+    HardwareProfile {
+        model: "Vector 16 HX AI A2XWIG",
+        board: "MS-15M3",
+        bios: "E15M3IMS.116",
+    },
+    HardwareProfile {
+        model: "Stealth 16Studio A13VG",
+        board: "MS-15F2",
+        bios: "E15F2IMS.10F",
+    }, // Example:
+       // HardwareProfile {
+       //     model: "Another model",
+       //     board: "Another board",
+       //     bios: "Another BIOS",
+       // },
+];
 
 pub(crate) const SECURE_BOOT_VARIABLE_NAME: &str = "SecureBoot";
 pub(crate) const EFI_GLOBAL_VARIABLE_GUID: &str = "{8BE4DF61-93CA-11D2-AA0D-00E098032B8C}";
@@ -114,8 +140,10 @@ impl FirmwareInfo {
             .bytes
             .get(5)
             .context("MsiDCVarData is shorter than six bytes")?;
+
         let target = byte5 & 0x03;
         let current = (byte5 & 0x0c) >> 2;
+
         Ok(Self {
             length: variable.bytes.len(),
             attributes: format!("0x{:08X}", variable.attributes),
@@ -135,13 +163,17 @@ impl FirmwareInfo {
         if !self.new_switch_supported {
             return Vec::new();
         }
+
         let mut modes = vec![Mode::MsHybrid];
+
         if self.discrete_supported {
             modes.push(Mode::Discrete);
         }
+
         if self.integrated_supported {
             modes.push(Mode::Integrated);
         }
+
         modes
     }
 }
@@ -154,6 +186,15 @@ pub struct MachineInfo {
     pub board_revision: String,
     pub bios: String,
     pub expected_hardware: bool,
+}
+
+/// Returns the first profile whose model, board, and BIOS all match.
+pub fn matching_profile(machine: &MachineInfo) -> Option<&'static HardwareProfile> {
+    HARDWARE_PROFILES.iter().find(|profile| {
+        machine.model == profile.model
+            && machine.board == profile.board
+            && machine.bios == profile.bios
+    })
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -177,12 +218,14 @@ pub(crate) fn decode_ap_state(raw: &[u8]) -> Result<ApState> {
     if raw.len() < 3 || raw[0] == 0 {
         bail!("MSI ACPI Get_AP returned an unsuccessful or short package");
     }
+
     let prefix_len = raw.len().min(8);
     let raw_prefix = raw[..prefix_len]
         .iter()
         .map(|byte| format!("{byte:02X}"))
         .collect::<Vec<_>>()
         .join(" ");
+
     Ok(ApState {
         raw_prefix,
         flag: raw[0],
@@ -234,6 +277,7 @@ pub fn stage_target(bytes: &[u8], target: Mode) -> Result<Vec<u8>> {
     if bytes.len() <= 5 {
         bail!("MsiDCVarData is shorter than six bytes");
     }
+
     let mut staged = bytes.to_vec();
     staged[5] = (staged[5] & 0xfc) | target.value();
     Ok(staged)
@@ -253,26 +297,37 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 pub(crate) fn validate_writable_variable(variable: &FirmwareVariable) -> Result<()> {
     if variable.bytes.len() != EXPECTED_VARIABLE_LENGTH {
         bail!(
-            "refusing write: expected a {EXPECTED_VARIABLE_LENGTH}-byte MsiDCVarData value, found {}",
+            "refusing write: expected a {EXPECTED_VARIABLE_LENGTH}-byte \
+             {MSI_VARIABLE_NAME} value, found {}",
             variable.bytes.len()
         );
     }
+
     if variable.attributes != EXPECTED_VARIABLE_ATTRIBUTES {
         bail!(
-            "refusing write: expected UEFI attributes 0x{EXPECTED_VARIABLE_ATTRIBUTES:08X}, found 0x{:08X}",
+            "refusing write: expected UEFI attributes 0x{EXPECTED_VARIABLE_ATTRIBUTES:08X}, \
+             found 0x{:08X}",
             variable.attributes
         );
     }
+
     Ok(())
 }
 
 pub fn collect_snapshot(allow_unknown_hardware: bool) -> Result<StateSnapshot> {
-    let machine = query_machine()?;
-    if !machine.expected_hardware && !allow_unknown_hardware {
+    let mut machine = query_machine()?;
+    let profile = matching_profile(&machine);
+
+    // Set this from the profile list rather than relying on a single hard-coded device.
+    machine.expected_hardware = profile.is_some();
+
+    if profile.is_none() && !allow_unknown_hardware {
         bail!(
-            "unsupported hardware: model '{}', board '{}'; use the explicit override only for a deliberate read-only capture",
+            "unsupported hardware: model '{}', board '{}', BIOS '{}'; \
+             use the explicit override only for a deliberate read-only capture",
             machine.model,
-            machine.board
+            machine.board,
+            machine.bios
         );
     }
 
@@ -302,10 +357,39 @@ mod tests {
     fn baseline() -> FirmwareVariable {
         let mut bytes = vec![0u8; EXPECTED_VARIABLE_LENGTH];
         bytes[5] = 0x3a;
+
         FirmwareVariable {
             bytes,
             attributes: EXPECTED_VARIABLE_ATTRIBUTES,
         }
+    }
+
+    #[test]
+    fn matches_supported_hardware_profile() {
+        let machine = MachineInfo {
+            manufacturer: "MSI".to_string(),
+            model: "Vector 16 HX AI A2XWIG".to_string(),
+            board: "MS-15M3".to_string(),
+            board_revision: String::new(),
+            bios: "E15M3IMS.116".to_string(),
+            expected_hardware: false,
+        };
+
+        assert!(matching_profile(&machine).is_some());
+    }
+
+    #[test]
+    fn rejects_non_matching_hardware_profile() {
+        let machine = MachineInfo {
+            manufacturer: "MSI".to_string(),
+            model: "Unknown model".to_string(),
+            board: "MS-15M3".to_string(),
+            board_revision: String::new(),
+            bios: "E15M3IMS.116".to_string(),
+            expected_hardware: false,
+        };
+
+        assert!(matching_profile(&machine).is_none());
     }
 
     #[test]
@@ -319,6 +403,7 @@ mod tests {
     #[test]
     fn stages_only_target_bits() {
         let before = baseline();
+
         for (mode, expected) in [
             (Mode::MsHybrid, 0x38),
             (Mode::Discrete, 0x39),

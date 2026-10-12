@@ -8,8 +8,8 @@ use anyhow::{Result, bail};
 use chrono::Local;
 use clap::{Parser, error::ErrorKind};
 use msi_gpu_mux::{
-    EXPECTED_BIOS, EXPECTED_VARIABLE_ATTRIBUTES, EXPECTED_VARIABLE_LENGTH, FirmwareInfo,
-    FirmwareVariable, MsiAcpi, ac_power_online, backup_directory, is_elevated,
+    EXPECTED_VARIABLE_ATTRIBUTES, EXPECTED_VARIABLE_LENGTH, FirmwareInfo, FirmwareVariable,
+    HARDWARE_PROFILES, MsiAcpi, ac_power_online, backup_directory, is_elevated,
     privilege_requirement, query_machine, read_msi_variable, recovery_key_warning, sha256_hex,
     shutdown_command, stage_target, trigger_value, verification_command, wait_for_keypress,
     write_msi_variable,
@@ -324,19 +324,28 @@ fn run(args: Args, reporter: &Reporter) -> Result<RunOutcome> {
     }
 
     let machine = query_machine()?;
-    if !machine.expected_hardware && !args.allow_unsupported_hardware {
+    let profile = HARDWARE_PROFILES
+        .iter()
+        .find(|profile| machine.model == profile.model && machine.board == profile.board);
+
+    if profile.is_none() && !args.allow_unsupported_hardware {
         bail!(
-            "unsupported hardware: model '{}', board '{}'; use the explicit override only after reviewing the firmware layout",
+            "unsupported hardware: model '{}', board '{}'; \
+         use the explicit override only after reviewing the firmware layout",
             machine.model,
             machine.board
         );
     }
-    if machine.bios != EXPECTED_BIOS && !args.allow_unvalidated_bios {
-        bail!(
-            "BIOS '{}' is not the characterized '{}'; use --allow-unvalidated-bios only after reviewing firmware changes",
-            machine.bios,
-            EXPECTED_BIOS
-        );
+
+    if let Some(profile) = profile {
+        if machine.bios != profile.bios && !args.allow_unvalidated_bios {
+            bail!(
+                "BIOS '{}' is not the characterized '{}'; \
+             use --allow-unvalidated-bios only after reviewing firmware changes",
+                machine.bios,
+                profile.bios
+            );
+        }
     }
 
     let initial_variable = read_msi_variable()?;

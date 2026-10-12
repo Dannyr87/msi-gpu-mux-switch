@@ -20,7 +20,7 @@ Aliases such as `hybrid`, `ms-hybrid`, `dgpu`, `igpu`, and `uma` are accepted.
 
 ## Hardware support
 
-The firmware contract is characterized for exactly this system:
+The firmware contract is characterized for exactly these systems:
 
 | Component | Required value |
 | --- | --- |
@@ -29,6 +29,14 @@ The firmware contract is characterized for exactly this system:
 | BIOS | E15M3IMS.116 |
 | Architecture | AMD64 |
 | Operating system | Windows or Linux |
+
+| Component | Required value |
+| --- | --- |
+| Laptop | Stealth 16Studio A13VG |
+| Motherboard | MS-15F2 |
+| BIOS | E15F2IMS.10F |
+| Architecture | AMD64 |
+| Operating system | Windows (untested) or Linux |
 
 Normal switching requires an exact model and motherboard match. The BIOS is
 checked separately. Development override flags exist, but they do not turn an
