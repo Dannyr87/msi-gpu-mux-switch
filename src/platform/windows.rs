@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use std::mem::size_of;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{anyhow, bail, Context, Result};
 use serde::Deserialize;
 use windows::Win32::Foundation::{
     CloseHandle, ERROR_NOT_ALL_ASSIGNED, ERROR_SUCCESS, GetLastError, HANDLE, LUID, SetLastError,
@@ -25,9 +25,9 @@ use wmi::{Variant, WMIConnection};
 
 use super::{AcpiAccess, Platform};
 use crate::{
-    ApState, DisplayDevice, EFI_GLOBAL_VARIABLE_GUID, EXPECTED_BOARD, EXPECTED_MODEL,
-    FirmwareVariable, MSI_VARIABLE_GUID, MSI_VARIABLE_NAME, MachineInfo, SECURE_BOOT_VARIABLE_NAME,
-    decode_ap_state, validate_writable_variable,
+    decode_ap_state, matching_profile, validate_writable_variable, ApState, DisplayDevice,
+    EFI_GLOBAL_VARIABLE_GUID, FirmwareVariable, MachineInfo, MSI_VARIABLE_GUID, MSI_VARIABLE_NAME,
+    SECURE_BOOT_VARIABLE_NAME,
 };
 
 const GENERAL_SETTING_KEY: &str =
@@ -113,15 +113,18 @@ impl Platform for WindowsPlatform {
             .into_iter()
             .next()
             .context("Win32_BIOS returned no rows")?;
-        let expected_hardware = computer.Model == EXPECTED_MODEL && board.Product == EXPECTED_BOARD;
-        Ok(MachineInfo {
+
+        let mut machine = MachineInfo {
             manufacturer: computer.Manufacturer,
             model: computer.Model,
             board: board.Product,
             board_revision: board.Version,
             bios: bios.SMBIOSBIOSVersion,
-            expected_hardware,
-        })
+            expected_hardware: false,
+        };
+        machine.expected_hardware = matching_profile(&machine).is_some();
+
+        Ok(machine)
     }
 
     fn query_display_devices() -> Result<Vec<DisplayDevice>> {
